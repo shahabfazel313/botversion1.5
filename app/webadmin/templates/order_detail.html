@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set account_mode = (order.account_mode or '') %}
+{% set account_mode_label = {'MY_ACCOUNT': 'روی اکانت مشتری', 'PREBUILT': 'اکانت آماده'}.get(account_mode, '—') %}
+<h1>مدیریت سفارش #{{ order.id }}</h1>
+<section class="panel">
+    <header><h2>اطلاعات سفارش</h2></header>
+    <div class="detail-grid">
+        <div>
+            <strong>محصول</strong>
+            <p>{{ order.plan_title or order.service_code or '—' }}</p>
+        </div>
+        <div>
+            <strong>مبلغ کل</strong>
+            <p>{{ format_amount(order.amount_total or order.price) }} تومان</p>
+        </div>
+        <div>
+            <strong>وضعیت</strong>
+            <p><span class="badge {{ order.status|lower }}">{{ order_status_labels.get(order.status, order.status) }}</span></p>
+        </div>
+        <div>
+            <strong>نوع پرداخت</strong>
+            <p>{{ payment_type_labels.get(order.payment_type, '—') }}</p>
+        </div>
+        <div>
+            <strong>ایجاد</strong>
+            <p>{{ format_datetime(order.created_at) }}</p>
+        </div>
+        <div>
+            <strong>آخرین بروزرسانی</strong>
+            <p>{{ format_datetime(order.updated_at) }}</p>
+        </div>
+        <div>
+            <strong>کاربر</strong>
+            <p>
+                {% if customer %}
+                    <a href="{{ url_for('user_detail', user_id=customer.user_id) }}">{{ customer.first_name or customer.username or customer.user_id }}</a>
+                {% else %}
+                    —
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <strong>ایمیل مشتری</strong>
+            <p>{{ order.customer_email or '—' }}</p>
+        </div>
+        <div>
+            <strong>حالت اکانت</strong>
+            <p>{{ account_mode_label }}</p>
+        </div>
+        <div>
+            <strong>رمز اکانت (در صورت ارائه)</strong>
+            <p>
+                {% if order.customer_secret_encrypted %}
+                <code>{{ order.customer_secret_encrypted }}</code>
+                {% else %}
+                —
+                {% endif %}
+            </p>
+        </div>
+        <div class="span">
+            <strong>یادداشت سفارش / تحویل</strong>
+            <p class="text-block">{{ (order.notes or '—')|replace('\n', '<br>')|safe }}</p>
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>پیام‌ها و فایل‌ها</h2></header>
+    <div class="detail-grid">
+        <div class="span">
+            <strong>پیام مشتری</strong>
+            <p class="text-block">{{ (order.customer_message or '—')|replace('\n', '<br>')|safe }}</p>
+        </div>
+        <div class="span">
+            <strong>پیام مدیر</strong>
+            <p class="text-block">{{ (order.manager_note or '—')|replace('\n', '<br>')|safe }}</p>
+        </div>
+        <div class="span">
+            <strong>رسید پرداخت</strong>
+            {% if order.receipt_file_id %}
+                <p>
+                    <a class="link" href="{{ url_for('order_receipt', order_id=order.id) }}" target="_blank">دانلود فایل رسید</a>
+                </p>
+                <img src="{{ url_for('order_receipt', order_id=order.id) }}" alt="receipt preview" class="receipt-preview">
+            {% else %}
+                <p>—</p>
+            {% endif %}
+            {% if order.receipt_text %}
+            <p class="text-block">{{ order.receipt_text|replace('\n', '<br>')|safe }}</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>ویرایش سفارش</h2></header>
+    <form method="post" action="{{ url_for('update_order', order_id=order.id) }}" class="form-grid">
+        <input type="hidden" name="action" value="status">
+        <label class="span">وضعیت سفارش
+            <select name="status_value" required>
+                {% for value, label in order_status_choices %}
+                <option value="{{ value }}" {{ 'selected' if order.status == value else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-primary">اعمال وضعیت</button>
+    </form>
+
+    <form method="post" action="{{ url_for('update_order', order_id=order.id) }}" class="form-grid">
+        <input type="hidden" name="action" value="payment">
+        <label class="span">نوع پرداخت
+            <select name="payment_type">
+                {% for value, label in payment_type_choices %}
+                <option value="{{ value }}" {{ 'selected' if (order.payment_type or '') == value else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-primary">اعمال نوع پرداخت</button>
+    </form>
+
+    {% if order.status == 'PENDING_PLAN' %}
+    <form method="post" action="{{ url_for('update_order', order_id=order.id) }}" class="form-grid">
+        <input type="hidden" name="action" value="plan_confirm">
+        <p class="span warning">این سفارش در انتظار تایید طرح خرید اول است.</p>
+        <button type="submit" class="btn-primary">تایید طرح خرید اول</button>
+    </form>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('update_order', order_id=order.id) }}" class="form-grid">
+        <input type="hidden" name="action" value="manager_note">
+        <label class="span">پیام مدیر برای مشتری
+            <textarea name="manager_note" rows="4" placeholder="پیام شما برای مشتری"></textarea>
+        </label>
+        <button type="submit" class="btn-primary">ارسال پیام</button>
+    </form>
+
+    <div class="history">
+        <h3>تاریخچه پیام‌های مدیر برای این سفارش</h3>
+        <ul class="list">
+            {% for item in manager_messages %}
+            <li>
+                <span class="text-block">{{ (item.message_text or '—')|replace('\n','<br>')|safe }}</span>
+                <span>{{ format_datetime(item.created_at) }}</span>
+            </li>
+            {% else %}
+            <li class="empty">پیامی ارسال نشده است.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>مدیریت مالی سفارش</h2></header>
+    <form method="post" action="{{ url_for('update_order', order_id=order.id) }}" class="form-grid">
+        <input type="hidden" name="action" value="financial">
+        <label>هزینه محصول (تومان)
+            <input type="number" name="cost_amount" min="0" value="{{ order.internal_cost or 0 }}">
+        </label>
+        <div class="span">
+            <p>مبلغ پرداختی مشتری: <strong>{{ format_amount(order.amount_total or order.price) }}</strong> تومان</p>
+            <p>درآمد ثبت‌شده: <strong>{{ format_amount(order.net_revenue or 0) }}</strong> تومان</p>
+        </div>
+        <button type="submit" class="btn-primary">ثبت اطلاعات مالی</button>
+    </form>
+</section>
+
+<section class="panel two-column">
+    <div>
+        <header><h2>تراکنش‌های مرتبط</h2></header>
+        <ul class="list">
+            {% for tx in wallet_history %}
+            <li>
+                <span><strong>{{ format_amount(tx.amount) }}</strong> <small>{{ tx.type }}</small></span>
+                <span>{{ format_datetime(tx.created_at) }}</span>
+            </li>
+            {% else %}
+            <li class="empty">تراکنش ثبت نشده است.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div>
+        <header><h2>سفارش‌های دیگر کاربر</h2></header>
+        <ul class="list">
+            {% for item in related_orders %}
+            <li>
+                <span>
+                    <a href="{{ url_for('order_detail', order_id=item.id) }}">#{{ item.id }} - {{ item.plan_title or item.service_code }}</a>
+                    <small>{{ order_status_labels.get(item.status, item.status) }}</small>
+                </span>
+                <span>{{ format_datetime(item.created_at) }}</span>
+            </li>
+            {% else %}
+            <li class="empty">سفارش دیگری ثبت نشده است.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>مدیریت محصولات</h1>
+<form method="post">
+    <section class="panel">
+        <header>
+            <h2>فهرست محصولات</h2>
+            <p class="muted">قیمت‌ها بر حسب {{ currency }} هستند.</p>
+        </header>
+        <table>
+            <thead>
+                <tr>
+                    <th>محصول</th>
+                    <th>تنظیمات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in products %}
+                <tr>
+                    <td>{{ item.title }}</td>
+                    <td>
+                        {% for variant in item.variants %}
+                        <div class="product-variant">
+                            <div class="variant-title">{{ variant.display_name }}</div>
+                            <div class="variant-controls">
+                                <label>قیمت ({{ currency }})
+                                    <input type="number" name="price_{{ variant.code }}" value="{{ variant.amount }}" min="0" step="1000">
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="avail_{{ variant.code }}" {% if variant.available %}checked{% endif %}>
+                                    موجود
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="2" class="empty">هیچ محصولی برای نمایش وجود ندارد.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <footer class="panel-footer">
+            <button type="submit" class="btn-primary">ذخیره تغییرات</button>
+        </footer>
+    </section>
+</form>
+{% endblock %}

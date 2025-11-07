@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>پیام‌های مشتریان</h1>
+<form class="filters" method="get">
+    <label>دسته‌بندی
+        <select name="category">
+            <option value="all" {{ 'selected' if category == 'all' else '' }}>همه</option>
+            {% for key, label in service_message_labels.items() %}
+            <option value="{{ key }}" {{ 'selected' if category == key else '' }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="submit" class="btn-primary">اعمال</button>
+</form>
+<section class="panel">
+    <header>
+        <h2>پیام‌ها ({{ total }})</h2>
+    </header>
+    <table>
+        <thead>
+            <tr>
+                <th>تاریخ</th>
+                <th>کاربر</th>
+                <th>دسته</th>
+                <th>متن</th>
+                <th>پیوست</th>
+                <th>وضعیت</th>
+                <th>مدیریت پیام</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for msg in messages_list %}
+            <tr>
+                <td>{{ format_datetime(msg.created_at) }}</td>
+                <td>
+                    <div>{{ msg.first_name or '—' }}</div>
+                    <small>@{{ msg.username or '—' }} — {{ msg.user_id or 'بدون آیدی' }}</small>
+                </td>
+                <td>{{ service_message_labels.get(msg.category, msg.category) }}</td>
+                <td class="message-text">{{ (msg.message_text or '—')|replace('\n','<br>')|safe }}</td>
+                <td>
+                    {% if msg.attachment_file_id %}
+                    <a class="link" href="{{ url_for('message_attachment', message_id=msg.id) }}" target="_blank">دانلود</a>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if msg.is_resolved %}
+                        <span class="badge completed">بسته</span>
+                    {% else %}
+                        <span class="badge in_progress">باز</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a class="link" href="{{ url_for('message_detail', message_id=msg.id) }}">مدیریت پیام</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="empty">پیامی ثبت نشده است.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, pages + 1) %}
+            <a href="?category={{ category }}&page={{ p }}" class="{{ 'active' if p == page else '' }}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

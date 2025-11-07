@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>مدیریت پیام #{{ message.id }}</h1>
+<section class="panel">
+    <header><h2>جزئیات پیام مشتری</h2></header>
+    <div class="detail-grid">
+        <div>
+            <strong>کاربر</strong>
+            <p>
+                {% if customer %}
+                    <a href="{{ url_for('user_detail', user_id=customer.user_id) }}">{{ customer.first_name or customer.username or customer.user_id }}</a>
+                {% else %}
+                    <span>—</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <strong>نام کاربری</strong>
+            <p>@{{ message.username or '—' }}</p>
+        </div>
+        <div>
+            <strong>دسته</strong>
+            <p>{{ category_label }}</p>
+        </div>
+        <div>
+            <strong>وضعیت درخواست</strong>
+            <p>
+                {% if message.is_resolved %}
+                    <span class="badge completed">بسته</span>
+                {% else %}
+                    <span class="badge in_progress">باز</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <strong>تاریخ ارسال</strong>
+            <p>{{ format_datetime(message.created_at) }}</p>
+        </div>
+        <div>
+            <strong>آخرین بروزرسانی</strong>
+            <p>{{ format_datetime(message.updated_at) }}</p>
+        </div>
+        <div class="span">
+            <strong>متن پیام</strong>
+            <p class="text-block">{{ (message.message_text or '—')|replace('\n','<br>')|safe }}</p>
+        </div>
+        <div class="span">
+            <strong>پیوست</strong>
+            {% if message.attachment_file_id %}
+                <p><a class="link" href="{{ url_for('message_attachment', message_id=message.id) }}" target="_blank">دانلود پیوست</a></p>
+                <img src="{{ url_for('message_attachment', message_id=message.id) }}" alt="پیش‌نمایش پیوست" class="receipt-preview">
+            {% else %}
+                <p>—</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="inline-actions">
+        <form method="post" action="{{ url_for('message_status', message_id=message.id) }}">
+            <input type="hidden" name="new_status" value="{{ 'open' if message.is_resolved else 'closed' }}">
+            {% if message.is_resolved %}
+            <button type="submit" class="btn-secondary">علامت‌گذاری به‌عنوان باز</button>
+            {% else %}
+            <button type="submit" class="btn-secondary">علامت‌گذاری به‌عنوان بسته</button>
+            {% endif %}
+        </form>
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>پیام مدیر برای مشتری</h2></header>
+    <form method="post" action="{{ url_for('message_reply', message_id=message.id) }}" class="form-grid">
+        <label class="span">متن پیام مدیر
+            <textarea name="reply_text" rows="4" placeholder="پاسخ شما به مشتری" required></textarea>
+        </label>
+        <button type="submit" class="btn-primary">ارسال پیام به مشتری</button>
+    </form>
+</section>
+
+<section class="panel">
+    <header><h2>تاریخچه پیام‌های ارسال‌شده</h2></header>
+    <ul class="list">
+        {% for item in replies %}
+        <li>
+            <span class="text-block">{{ (item.message_text or '—')|replace('\n','<br>')|safe }}</span>
+            <span>{{ format_datetime(item.created_at) }}</span>
+        </li>
+        {% else %}
+        <li class="empty">پیامی ارسال نشده است.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>داشبورد مدیریتی</h1>
+<section class="grid cards">
+    <div class="card">
+        <div class="card-title">کل سفارش‌ها</div>
+        <div class="card-value">{{ snapshot.orders_total }}</div>
+        <div class="card-sub">در ۷ روز اخیر {{ snapshot.new_orders_week }} سفارش جدید ثبت شده است.</div>
+    </div>
+    <div class="card">
+        <div class="card-title">کاربران ثبت‌شده</div>
+        <div class="card-value">{{ snapshot.users_total }}</div>
+        <div class="card-sub">جمع موجودی کیف پول کاربران: {{ format_amount(snapshot.wallet_totals.get('CREDIT', 0) - snapshot.wallet_totals.get('DEBIT', 0) + snapshot.wallet_totals.get('REFUND', 0)) }} تومان</div>
+    </div>
+    <div class="card warning">
+        <div class="card-title">در انتظار پرداخت</div>
+        <div class="card-value">{{ snapshot.awaiting_payment }}</div>
+        <div class="card-sub">در انتظار تایید: {{ snapshot.pending_confirm }}</div>
+    </div>
+    <div class="card success">
+        <div class="card-title">تحویل‌شده</div>
+        <div class="card-value">{{ snapshot.delivered }}</div>
+        <div class="card-sub">در صف تحویل: {{ snapshot.in_queue }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">پیام‌های دریافتی</div>
+        <div class="card-value">{{ snapshot.messages_total }}</div>
+        <div class="card-sub"><a class="link" href="{{ url_for('messages') }}">مشاهده پیام‌ها</a></div>
+    </div>
+    <div class="card accent">
+        <div class="card-title">درآمد کل تأییدشده</div>
+        <div class="card-value">{{ format_amount(snapshot.revenue_total) }} <span class="unit">تومان</span></div>
+        <div class="card-sub">۳۰ روز اخیر: {{ format_amount(snapshot.revenue_30_days) }} تومان</div>
+    </div>
+</section>
+
+<section class="panel">
+    <header>
+        <h2>سفارش‌های اخیر</h2>
+        <a class="link" href="{{ url_for('orders_page') }}">مشاهده همه</a>
+    </header>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>کاربر</th>
+                <th>محصول</th>
+                <th>مبلغ</th>
+                <th>وضعیت</th>
+                <th>ثبت</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in recent_orders %}
+            <tr>
+                <td><a href="{{ url_for('order_detail', order_id=order.id) }}">#{{ order.id }}</a></td>
+                <td>{{ order.username or order.first_name or '—' }}</td>
+                <td>{{ order.plan_title or order.service_code or '—' }}</td>
+                <td>{{ format_amount(order.amount_total or order.price) }}</td>
+                <td><span class="badge {{ order.status|lower }}">{{ order_status_labels.get(order.status, order.status) }}</span></td>
+                <td>{{ format_datetime(order.created_at) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">سفارشی ثبت نشده است.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="panel two-column">
+    <div>
+        <header>
+            <h2>آخرین کاربران</h2>
+            <a class="link" href="{{ url_for('users_page') }}">همه کاربران</a>
+        </header>
+        <ul class="list">
+            {% for user in recent_users %}
+            <li>
+                <span>
+                    <strong>{{ user.first_name or 'بدون نام' }}</strong>
+                    <small>@{{ user.username or '—' }}</small>
+                </span>
+                <span>{{ format_datetime(user.created_at) }}</span>
+            </li>
+            {% else %}
+            <li class="empty">کاربری ثبت نشده است.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div>
+        <header>
+            <h2>تراکنش‌های کیف پول</h2>
+            <a class="link" href="{{ url_for('wallet_page') }}">گزارش کامل</a>
+        </header>
+        <ul class="list">
+            {% for tx in recent_wallet %}
+            <li>
+                <span>
+                    <strong>{{ format_amount(tx.amount) }} تومان</strong>
+                    <small>{{ tx.type }}</small>
+                </span>
+                <span>{{ format_datetime(tx.created_at) }}</span>
+            </li>
+            {% else %}
+            <li class="empty">تراکنشی وجود ندارد.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

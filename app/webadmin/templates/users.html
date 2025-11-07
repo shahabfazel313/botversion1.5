@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>کاربران</h1>
+<form class="filters" method="get">
+    <label>جستجو
+        <input type="text" name="q" value="{{ query or '' }}" placeholder="آیدی کاربری یا نام">
+    </label>
+    <button type="submit" class="btn-primary">جستجو</button>
+</form>
+<section class="panel">
+    <header><h2>کاربران ({{ total }})</h2></header>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>نام</th>
+                <th>یوزرنیم</th>
+                <th>شماره موبایل</th>
+                <th>موجودی</th>
+                <th>سفارش‌ها</th>
+                <th>تاریخ ثبت</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.user_id }}</td>
+                <td>{{ user.first_name or '—' }}</td>
+                <td>@{{ user.username or '—' }}</td>
+                <td>{{ user.contact_phone or '—' }}</td>
+                <td>{{ format_amount(user.wallet_balance) }}</td>
+                <td>{{ user.ref_count or 0 }}</td>
+                <td>{{ format_datetime(user.created_at) }}</td>
+                <td><a class="link" href="{{ url_for('user_detail', user_id=user.user_id) }}">جزئیات</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="empty">هیچ کاربری یافت نشد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, pages + 1) %}
+            <a href="?q={{ query }}&page={{ p }}" class="{{ 'active' if p == page else '' }}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

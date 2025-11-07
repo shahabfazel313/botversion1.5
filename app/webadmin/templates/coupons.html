@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>کوپن‌ها</h1>
+
+<section class="panel">
+    <header><h2>ایجاد کوپن جدید</h2></header>
+    <form method="post" action="{{ url_for('coupon_create') }}" class="form-grid">
+        <label>کد کوپن (اختیاری)
+            <input type="text" name="code" placeholder="مثال: WELCOME2024">
+        </label>
+        <label>مبلغ (تومان)
+            <input type="number" name="amount" min="1" required>
+        </label>
+        <label>تعداد قابل استفاده
+            <input type="number" name="usage_limit" min="1" required>
+        </label>
+        <label>تاریخ انقضا
+            <input type="date" name="expires_on">
+        </label>
+        <button type="submit" class="btn-primary">تولید کوپن</button>
+    </form>
+    <p class="hint">در صورت خالی گذاشتن فیلد کد، یک کد تصادفی ایجاد می‌شود.</p>
+</section>
+
+<section class="panel">
+    <header><h2>تاریخچه و مدیریت کوپن‌ها</h2></header>
+    <table>
+        <thead>
+            <tr>
+                <th>کد</th>
+                <th>مبلغ</th>
+                <th>استفاده‌شده / مجاز</th>
+                <th>کاربران استفاده‌کننده</th>
+                <th>انقضا</th>
+                <th>وضعیت</th>
+                <th>تغییر وضعیت</th>
+                <th>ویرایش</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for coupon in coupons %}
+            <tr>
+                <td><strong>{{ coupon.code }}</strong></td>
+                <td>{{ format_amount(coupon.amount) }} تومان</td>
+                <td>{{ coupon.used_count }} / {{ coupon.usage_limit }}</td>
+                <td>
+                    {% if coupon.redeemed_users %}
+                        <div class="tag-row">
+                            {% for uid in coupon.redeemed_users %}
+                                <span class="badge">#{{ uid }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if coupon.expires_at %}
+                        {{ format_datetime(coupon.expires_at) }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if not coupon.is_active %}
+                        <span class="badge muted">غیرفعال</span>
+                    {% elif coupon.is_expired %}
+                        <span class="badge expired">منقضی</span>
+                    {% elif coupon.usage_limit and coupon.used_count >= coupon.usage_limit %}
+                        <span class="badge warning">اتمام ظرفیت</span>
+                    {% else %}
+                        <span class="badge approved">فعال</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('coupon_toggle', coupon_id=coupon.id) }}">
+                        {% if coupon.is_active %}
+                            <button type="submit" class="btn-ghost danger">غیرفعال کردن</button>
+                        {% else %}
+                            <button type="submit" class="btn-ghost">فعال کردن</button>
+                        {% endif %}
+                    </form>
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('coupon_update', coupon_id=coupon.id) }}" class="form-inline">
+                        <input type="text" name="code" value="{{ coupon.code }}" required>
+                        <input type="number" name="amount" min="1" value="{{ coupon.amount }}" required>
+                        <input type="number" name="usage_limit" min="{{ coupon.used_count if coupon.used_count else 1 }}" value="{{ coupon.usage_limit }}" required>
+                        <input type="date" name="expires_on" value="{{ coupon.expires_value }}">
+                        <button type="submit" class="btn-secondary">ذخیره</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="empty">کوپنی ثبت نشده است.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

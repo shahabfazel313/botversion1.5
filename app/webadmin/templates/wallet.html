@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>گزارش کیف پول</h1>
+<section class="panel">
+    <header><h2>خلاصه</h2></header>
+    <div class="stats four">
+        <div><span>واریزی‌ها</span><strong>{{ format_amount(summary.by_type.get('CREDIT', 0)) }}</strong></div>
+        <div><span>برداشت‌ها</span><strong>{{ format_amount(summary.by_type.get('DEBIT', 0)) }}</strong></div>
+        <div><span>رزرو</span><strong>{{ format_amount(summary.by_type.get('RESERVE', 0)) }}</strong></div>
+        <div><span>بازپرداخت‌ها</span><strong>{{ format_amount(summary.by_type.get('REFUND', 0)) }}</strong></div>
+    </div>
+    <p class="hint">جمع موجودی فعلی کاربران: {{ format_amount(summary.user_balances) }} تومان</p>
+</section>
+
+<section class="panel">
+    <header><h2>تراکنش‌های اخیر</h2></header>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>کاربر</th>
+                <th>سفارش</th>
+                <th>نوع</th>
+                <th>مبلغ</th>
+                <th>تاریخ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in transactions %}
+            <tr>
+                <td>{{ tx.id }}</td>
+                <td><a class="link" href="{{ url_for('user_detail', user_id=tx.user_id) }}">{{ tx.user_id }}</a></td>
+                <td>{% if tx.order_id %}<a class="link" href="{{ url_for('order_detail', order_id=tx.order_id) }}">#{{ tx.order_id }}</a>{% else %}—{% endif %}</td>
+                <td>{{ tx.type }}</td>
+                <td>{{ format_amount(tx.amount) }}</td>
+                <td>{{ format_datetime(tx.created_at) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">تراکنشی ثبت نشده است.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>پروفایل کاربر {{ profile.user_id }}</h1>
+<section class="panel">
+    <header><h2>اطلاعات کاربر</h2></header>
+    <div class="detail-grid">
+        <div>
+            <strong>نام</strong>
+            <p>{{ profile.first_name or '—' }}</p>
+        </div>
+        <div>
+            <strong>یوزرنیم</strong>
+            <p>@{{ profile.username or '—' }}</p>
+        </div>
+        <div>
+            <strong>موجودی کیف پول</strong>
+            <p>{{ format_amount(profile.wallet_balance) }} تومان</p>
+        </div>
+        <div>
+            <strong>آیدی معرف</strong>
+            <p>{{ profile.ref_by or '—' }}</p>
+        </div>
+        <div>
+            <strong>تعداد ارجاعات</strong>
+            <p>{{ profile.ref_count or 0 }}</p>
+        </div>
+        <div>
+            <strong>درآمد کل</strong>
+            <p>{{ format_amount(profile.earnings_total or 0) }} تومان</p>
+        </div>
+        <div>
+            <strong>ثبت نام</strong>
+            <p>{{ format_datetime(profile.created_at) }}</p>
+        </div>
+        <div>
+            <strong>آخرین بروزرسانی</strong>
+            <p>{{ format_datetime(profile.updated_at) }}</p>
+        </div>
+        <div>
+            <strong>وضعیت دسترسی</strong>
+            <p>
+                {% if profile.is_blocked %}
+                    <span class="badge awaiting_payment">مسدود</span>
+                {% else %}
+                    <span class="badge approved">فعال</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="span">
+            <strong>تلفن تایید شده</strong>
+            <p>{{ profile.contact_phone or '—' }}</p>
+        </div>
+    </div>
+    <div class="inline-actions">
+        {% if profile.is_blocked %}
+        <form method="post" action="{{ url_for('toggle_block', user_id=profile.user_id) }}">
+            <input type="hidden" name="action" value="unblock">
+            <button type="submit" class="btn-secondary">رفع مسدودی</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('toggle_block', user_id=profile.user_id) }}">
+            <input type="hidden" name="action" value="block">
+            <button type="submit" class="btn-danger">مسدود کردن کاربر</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>آمار سفارش‌ها</h2></header>
+    <div class="stats">
+        <div><span>کل سفارش‌ها</span><strong>{{ stats.orders_total }}</strong></div>
+        <div><span>در حال انجام</span><strong>{{ stats.orders_inprog }}</strong></div>
+        <div><span>تکمیل شده</span><strong>{{ stats.orders_done }}</strong></div>
+    </div>
+</section>
+
+<section class="panel">
+    <header><h2>ارسال پیام به کاربر</h2></header>
+    <form method="post" action="{{ url_for('send_user_message', user_id=profile.user_id) }}" class="form-grid">
+        <label class="span">متن پیام
+            <textarea name="message_text" rows="3" placeholder="پیام مدیر برای ارسال به کاربر" required></textarea>
+        </label>
+        <button type="submit" class="btn-primary">ارسال پیام</button>
+    </form>
+</section>
+
+<section class="panel">
+    <header><h2>تاریخچه پیام‌های مدیر</h2></header>
+    <ul class="list">
+        {% for item in manager_messages %}
+        <li>
+            <span class="text-block">{{ (item.message_text or '—')|replace('\n','<br>')|safe }}</span>
+            <span>{{ format_datetime(item.created_at) }}</span>
+        </li>
+        {% else %}
+        <li class="empty">پیامی ارسال نشده است.</li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section class="panel">
+    <header><h2>اعمال تغییر موجودی</h2></header>
+    <form method="post" action="{{ url_for('adjust_wallet', user_id=profile.user_id) }}" class="form-grid">
+        <label>عملیات
+            <select name="action" required>
+                <option value="credit">واریز به کیف پول</option>
+                <option value="debit">کسر از کیف پول</option>
+                <option value="refund">ثبت برگشت</option>
+                <option value="reserve">رزرو مبلغ</option>
+            </select>
+        </label>
+        <label>مبلغ (تومان)
+            <input type="number" name="amount" min="1" required>
+        </label>
+        <label class="span">یادداشت
+            <textarea name="note" rows="3" placeholder="توضیح برای ثبت در گزارش"></textarea>
+        </label>
+        <button type="submit" class="btn-primary">ثبت تراکنش</button>
+    </form>
+</section>
+
+<section class="panel">
+    <header><h2>آخرین سفارش‌ها</h2></header>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>محصول</th>
+                <th>مبلغ</th>
+                <th>وضعیت</th>
+                <th>تاریخ</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>#{{ order.id }}</td>
+                <td>{{ order.plan_title or order.service_code or '—' }}</td>
+                <td>{{ format_amount(order.amount_total or order.price) }}</td>
+                <td><span class="badge {{ order.status|lower }}">{{ order_status_labels.get(order.status, order.status) }}</span></td>
+                <td>{{ format_datetime(order.created_at) }}</td>
+                <td><a class="link" href="{{ url_for('order_detail', order_id=order.id) }}">جزئیات</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">سفارشی ثبت نشده است.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="panel">
+    <header><h2>تراکنش‌های کیف پول</h2></header>
+    <ul class="list">
+        {% for tx in wallet_history %}
+        <li>
+            <span>
+                <strong>{{ format_amount(tx.amount) }} تومان</strong>
+                <small>
+                    {{ tx.display_type }}
+                    {% if tx.coupon_code %}
+                        – {{ tx.coupon_code }}
+                    {% elif tx.note %}
+                        – {{ tx.note }}
+                    {% endif %}
+                </small>
+            </span>
+            <span>{{ format_datetime(tx.created_at) }}</span>
+        </li>
+        {% else %}
+        <li class="empty">تراکنشی ثبت نشده است.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

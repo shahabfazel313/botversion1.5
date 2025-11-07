@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="auth-box">
+    <h1>ورود مدیر</h1>
+    {% if error %}
+        <div class="message error">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+        <label>نام کاربری
+            <input type="text" name="username" value="{{ username or '' }}" required autofocus>
+        </label>
+        <label>رمز عبور
+            <input type="password" name="password" required>
+        </label>
+        <input type="hidden" name="next" value="{{ next or '' }}">
+        <button type="submit" class="btn-primary">ورود</button>
+    </form>
+    <p class="auth-hint">برای امنیت بیشتر پس از پایان کار حتماً خروج را بزنید.</p>
+</section>
+{% endblock %}

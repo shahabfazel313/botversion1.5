@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>لیست سفارش‌ها</h1>
+<form class="filters" method="get">
+    <label>وضعیت
+        <select name="status">
+            <option value="all" {{ 'selected' if status_filter == 'all' else '' }}>همه</option>
+            {% for value, label in order_status_choices %}
+            <option value="{{ value }}" {{ 'selected' if status_filter == value else '' }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>جستجو
+        <input type="text" name="q" value="{{ query or '' }}" placeholder="شماره سفارش، کاربر یا ایمیل">
+    </label>
+    <button type="submit" class="btn-primary">اعمال</button>
+</form>
+
+<section class="panel">
+    <header>
+        <h2>سفارش‌ها ({{ total }})</h2>
+    </header>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>کاربر</th>
+                <th>محصول</th>
+                <th>مبلغ</th>
+                <th>وضعیت</th>
+                <th>به‌روزرسانی</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>#{{ order.id }}</td>
+                <td>
+                    <div>{{ order.first_name or '—' }}</div>
+                    <small>@{{ order.username or '—' }}</small>
+                </td>
+                <td>
+                    <div>{{ order.plan_title or order.service_code or '—' }}</div>
+                    <small>{{ order.customer_email or 'بدون ایمیل' }}</small>
+                </td>
+                <td>{{ format_amount(order.amount_total or order.price) }}</td>
+                <td><span class="badge {{ order.status|lower }}">{{ order_status_labels.get(order.status, order.status) }}</span></td>
+                <td>{{ format_datetime(order.updated_at or order.created_at) }}</td>
+                <td><a class="link" href="{{ url_for('order_detail', order_id=order.id) }}">مدیریت</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="empty">نتیجه‌ای یافت نشد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, pages + 1) %}
+            <a href="?status={{ status_filter }}&q={{ query }}&page={{ p }}" class="{{ 'active' if p == page else '' }}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
