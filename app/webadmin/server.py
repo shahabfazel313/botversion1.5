@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from ..catalog import list_admin_rows, set_variant_settings
+from ..catalog import list_admin_rows, list_discount_products, set_variant_settings
 from ..config import ADMIN_WEB_PASS, ADMIN_WEB_SECRET, ADMIN_WEB_USER, BOT_TOKEN, CURRENCY
 from ..db import (
     ORDER_STATUS_LABELS,
@@ -45,27 +45,31 @@ from ..db import (
     set_service_message_status,
     set_order_payment_type,
     set_order_status,
+    set_order_deadline,
     set_order_wallet_reserved,
     set_order_wallet_used,
     update_order_notes,
     set_user_blocked,
     add_order_manager_message,
     add_user_manager_message,
+    create_discount_code,
     create_coupon,
     create_discount_code,
     get_coupon,
     get_discount_code,
     list_coupons,
     list_discount_codes,
-    list_discount_usages,
+    list_discount_redemptions,
     list_coupon_redemptions,
     set_coupon_active,
     set_discount_active,
     list_order_manager_messages,
     list_user_manager_messages,
+    update_discount_code,
     set_order_financials,
     update_discount_code,
 )
+from ..keyboards import ik_cart_actions
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -619,6 +623,40 @@ def create_admin_app() -> FastAPI:
                     )
                 _flash(request, "طرح خرید اول تایید و سفارش در حال انجام شد.")
 
+        elif action == "first_plan_request":
+            if order.get("payment_type") != "FIRST_PLAN" or order.get("status") != "DELIVERED":
+                _flash(request, "ارسال درخواست پرداخت در این وضعیت امکان‌پذیر نیست.", "error")
+            else:
+                set_order_status(order_id, "AWAITING_PAYMENT")
+                set_order_payment_type(order_id, "FIRST_PLAN_BILLING")
+                set_order_deadline(order_id, datetime.now() + timedelta(minutes=30))
+                updated = get_order(order_id)
+                _flash(request, "درخواست پرداخت برای مشتری ارسال شد.")
+                if updated and user_id:
+                    amount_total = int(updated.get("amount_total") or 0)
+                    subtotal = int(updated.get("amount_subtotal") or amount_total)
+                    discount_amount = int(updated.get("discount_amount") or 0)
+                    lines = [
+                        "⏰ شما نیم ساعت فرصت دارید برای پرداخت، لطفاً هزینه سفارش خود را پرداخت کنید.",
+                        f"شماره سفارش: #{order_id}",
+                        f"محصول: {order_title}",
+                    ]
+                    if discount_amount > 0:
+                        lines.append(f"قیمت اصلی: {_format_amount(subtotal)} {CURRENCY}")
+                        lines.append(f"تخفیف: {_format_amount(discount_amount)} {CURRENCY}")
+                        lines.append(f"مبلغ قابل پرداخت: {_format_amount(amount_total)} {CURRENCY}")
+                    else:
+                        lines.append(f"مبلغ قابل پرداخت: {_format_amount(amount_total)} {CURRENCY}")
+                    lines.append("روش پرداخت را انتخاب کنید:")
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            "\n".join(lines),
+                            reply_markup=ik_cart_actions(order_id, enable_plan=False),
+                        )
+                    except Exception:
+                        pass
+
         elif action == "manager_note":
             text = (manager_note or "").strip()
             if not text:
@@ -816,42 +854,26 @@ def create_admin_app() -> FastAPI:
             },
         )
 
-    @app.get("/discounts")
+    @app.get("/discounts", name="discounts_page")
     async def discounts_page(request: Request, user: str = Depends(_login_required)):
-        product_rows = list_admin_rows()
-        variants: list[dict[str, Any]] = []
-        product_labels: dict[str, str] = {}
-        for row in product_rows:
-            for variant in row.get("variants", []):
-                variants.append(
-                    {
-                        "group_code": row.get("code"),
-                        "group_title": row.get("title"),
-                        "variant": variant,
-                    }
-                )
-                variant_code = (variant.get("code") or "").strip()
-                if variant_code:
-                    label = f"{row.get('title')} – {variant.get('display_name')}"
-                    product_labels[variant_code] = label
-
-        codes = list_discount_codes(limit=500)
+        products = list_discount_products()
+        product_lookup = {item["product_key"]: item for item in products}
+        discounts = list_discount_codes(limit=400)
         now_dt = datetime.now()
-        grouped: dict[str, list[dict[str, Any]]] = {}
-        for item in codes:
+        for entry in discounts:
             try:
-                item["amount"] = int(item.get("amount") or 0)
+                entry["amount"] = int(entry.get("amount") or 0)
             except (TypeError, ValueError):
-                item["amount"] = 0
+                entry["amount"] = 0
             try:
-                item["usage_limit"] = int(item.get("usage_limit") or 0)
+                entry["usage_limit"] = int(entry.get("usage_limit") or 0)
             except (TypeError, ValueError):
-                item["usage_limit"] = 0
+                entry["usage_limit"] = 0
             try:
-                item["used_count"] = int(item.get("used_count") or 0)
+                entry["used_count"] = int(entry.get("used_count") or 0)
             except (TypeError, ValueError):
-                item["used_count"] = 0
-            expires_at = item.get("expires_at")
+                entry["used_count"] = 0
+            expires_at = entry.get("expires_at")
             expires_value = ""
             is_expired = False
             if expires_at:
@@ -861,26 +883,26 @@ def create_admin_app() -> FastAPI:
                     expires_value = exp_dt.strftime("%Y-%m-%d")
                 except ValueError:
                     expires_value = str(expires_at)[:10]
-            item["expires_value"] = expires_value
-            item["is_expired"] = is_expired
-            usages = list_discount_usages(item.get("id"), include_pending=True) if item.get("id") else []
-            locked_users = [u.get("user_id") for u in usages if u.get("locked")]
-            pending_count = sum(1 for u in usages if not u.get("locked"))
-            item["locked_users"] = [uid for uid in locked_users if uid is not None]
-            item["pending_count"] = pending_count
-            grouped.setdefault(item.get("product_code") or "", []).append(item)
-
+            entry["expires_value"] = expires_value
+            entry["is_expired"] = is_expired
+            entry["remaining"] = max(entry["usage_limit"] - entry["used_count"], 0)
+            entry["is_active"] = bool(entry.get("is_active"))
+            product_info = product_lookup.get(entry.get("product_key"))
+            if product_info:
+                entry["product_label"] = f"{product_info['group_title']} — {product_info['display_name']}"
+            else:
+                entry["product_label"] = entry.get("product_key") or "—"
+            redemptions = list_discount_redemptions(entry.get("id")) if entry.get("id") else []
+            entry["redeemed_users"] = [row.get("user_id") for row in redemptions if row.get("user_id") is not None]
         return _render(
             request,
             "discounts.html",
             {
                 "title": "مدیریت کدهای تخفیف",
-                "products": variants,
-                "discount_map": grouped,
+                "products": products,
+                "discounts": discounts,
                 "format_amount": _format_amount,
                 "format_datetime": _format_datetime,
-                "product_labels": product_labels,
-                "currency": CURRENCY,
                 "nav": "discounts",
             },
         )
@@ -889,37 +911,40 @@ def create_admin_app() -> FastAPI:
     async def discount_create(
         request: Request,
         user: str = Depends(_login_required),
-        product_code: str = Form(...),
-        code: str = Form(""),
+        product_key: str = Form(...),
         title: str = Form(""),
+        code: str = Form(""),
         amount: int = Form(...),
         usage_limit: int = Form(...),
         expires_on: str = Form(""),
     ):
-        product_value = (product_code or "").strip()
-        if not product_value:
-            _flash(request, "لطفاً محصول را انتخاب کنید.", "error")
-            return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
         try:
-            if amount <= 0 or usage_limit <= 0:
+            amount_value = int(amount)
+            usage_value = int(usage_limit)
+            if amount_value <= 0 or usage_value <= 0:
                 raise ValueError
         except Exception:
-            _flash(request, "مقادیر وارد شده معتبر نیستند.", "error")
+            _flash(request, "ورودی‌ها معتبر نیستند.", "error")
+            return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
+
+        available_keys = {item["product_key"] for item in list_discount_products()}
+        normalized_product_key = (product_key or "").strip().upper()
+        if normalized_product_key not in available_keys:
+            _flash(request, "محصول انتخاب شده معتبر نیست.", "error")
             return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
 
         normalized_code = (code or "").strip().upper()
         if not normalized_code:
             normalized_code = _generate_coupon_code()
-
         expires_at: str | None = None
         expires_input = (expires_on or "").strip()
         if expires_input:
             expires_at = f"{expires_input}T23:59:59"
 
         try:
-            create_discount_code(product_value, normalized_code, title, amount, usage_limit, expires_at)
+            create_discount_code(normalized_product_key, title, normalized_code, amount_value, usage_value, expires_at)
         except sqlite3.IntegrityError:
-            _flash(request, "کد وارد شده تکراری است.", "error")
+            _flash(request, "این کد قبلاً ثبت شده است.", "error")
         except ValueError as exc:
             _flash(request, str(exc), "error")
         else:
@@ -932,9 +957,8 @@ def create_admin_app() -> FastAPI:
         request: Request,
         discount_id: int,
         user: str = Depends(_login_required),
-        product_code: str = Form(...),
+        title: str = Form(...),
         code: str = Form(...),
-        title: str = Form(""),
         amount: int = Form(...),
         usage_limit: int = Form(...),
         expires_on: str = Form(""),
@@ -944,15 +968,16 @@ def create_admin_app() -> FastAPI:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="کد تخفیف یافت نشد")
 
         try:
-            if amount <= 0 or usage_limit <= 0:
+            amount_value = int(amount)
+            usage_value = int(usage_limit)
+            if amount_value <= 0 or usage_value <= 0:
                 raise ValueError
         except Exception:
             _flash(request, "مقادیر وارد شده معتبر نیستند.", "error")
             return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
 
-        locked_usages = list_discount_usages(discount_id, include_pending=False)
-        locked_count = len(locked_usages)
-        if usage_limit < locked_count:
+        used_count = int(discount.get("used_count") or 0)
+        if usage_value < used_count:
             _flash(request, "تعداد قابل استفاده نمی‌تواند کمتر از تعداد استفاده شده باشد.", "error")
             return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
 
@@ -961,23 +986,21 @@ def create_admin_app() -> FastAPI:
         if expires_input:
             expires_at = f"{expires_input}T23:59:59"
 
-        normalized_code = (code or "").strip().upper()
-        if not normalized_code:
-            _flash(request, "کد تخفیف نمی‌تواند خالی باشد.", "error")
-            return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
-
         try:
-            update_discount_code(
+            success = update_discount_code(
                 discount_id,
-                product_code=(product_code or "").strip() or discount.get("product_code"),
-                code=normalized_code,
                 title=title,
-                amount=amount,
-                usage_limit=usage_limit,
+                code=code,
+                amount=amount_value,
+                usage_limit=usage_value,
                 expires_at=expires_at,
             )
         except sqlite3.IntegrityError:
             _flash(request, "کد وارد شده تکراری است.", "error")
+            return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
+
+        if not success:
+            _flash(request, "به‌روزرسانی کد تخفیف ممکن نشد.", "error")
         else:
             _flash(request, "اطلاعات کد تخفیف بروزرسانی شد.")
 
@@ -992,10 +1015,12 @@ def create_admin_app() -> FastAPI:
         discount = get_discount_code(discount_id)
         if not discount:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="کد تخفیف یافت نشد")
+
         is_active = bool(discount.get("is_active"))
         set_discount_active(discount_id, not is_active)
         state_text = "فعال" if not is_active else "غیرفعال"
         _flash(request, f"کد {discount.get('code')} {state_text} شد.")
+
         return RedirectResponse(request.url_for("discounts_page"), status.HTTP_303_SEE_OTHER)
 
     @app.get("/coupons")

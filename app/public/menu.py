@@ -61,28 +61,38 @@ async def on_reply_cart(message: Message, state: FSMContext) -> None:
             order.get("service_code", ""),
             order.get("notes"),
         )
-        amount = int(order.get("amount_total") or 0)
-        amount_original = int(order.get("amount_original") or 0)
-        discount_amount = int(order.get("discount_amount") or 0)
-        if amount_original <= 0:
-            amount_original = amount + discount_amount
+        try:
+            amount = int(order.get("amount_total") or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        try:
+            subtotal = int(order.get("amount_subtotal") or amount)
+        except (TypeError, ValueError):
+            subtotal = amount
+        try:
+            discount_amount = int(order.get("discount_amount") or 0)
+        except (TypeError, ValueError):
+            discount_amount = 0
         reserved = int(order.get("wallet_reserved_amount") or 0)
         remaining = max(amount - reserved, 0)
-        lines = [f"🧺 سفارش #{order['id']} — <b>{title}</b>"]
+        text_lines = [f"🧺 سفارش #{order['id']} — <b>{title}</b>"]
         if discount_amount > 0:
-            lines.append(f"مبلغ اولیه: <b>{amount_original} {CURRENCY}</b>")
-            lines.append(f"تخفیف: <b>-{discount_amount} {CURRENCY}</b>")
-            lines.append(f"مبلغ قابل پرداخت: <b>{amount} {CURRENCY}</b>")
-            code_value = (order.get("discount_code") or "").strip()
-            if code_value:
-                lines.append(f"کد تخفیف: <code>{code_value}</code>")
+            text_lines.append(f"قیمت اصلی: <b>{subtotal} {CURRENCY}</b>")
+            text_lines.append(f"تخفیف: <b>{discount_amount} {CURRENCY}</b>")
+            text_lines.append(f"مبلغ قابل پرداخت: <b>{amount} {CURRENCY}</b>")
+            discount_code = str(order.get("discount_code") or "").strip()
+            if discount_code:
+                text_lines.append(f"کد تخفیف: <code>{discount_code}</code>")
         else:
-            lines.append(f"مبلغ کل: <b>{amount} {CURRENCY}</b>")
-        lines.append(f"از کیف پول رزرو شده: <b>{reserved} {CURRENCY}</b>")
-        lines.append(f"باقیمانده برای پرداخت کارت: <b>{remaining} {CURRENCY}</b>")
-        lines.append(f"وضعیت: <b>{_status_fa(order['status'])}</b>{ttl}")
-        text = "\n".join(lines)
-        enable_plan = order.get("service_category") == "AI"
+            text_lines.append(f"مبلغ کل: <b>{amount} {CURRENCY}</b>")
+        text_lines.append(f"از کیف پول رزرو شده: <b>{reserved} {CURRENCY}</b>")
+        text_lines.append(f"باقیمانده برای پرداخت کارت: <b>{remaining} {CURRENCY}</b>")
+        text_lines.append(f"وضعیت: <b>{_status_fa(order['status'])}</b>{ttl}")
+        text = "\n".join(text_lines)
+        enable_plan = (
+            order.get("service_category") == "AI"
+            and (order.get("payment_type") or "") != "FIRST_PLAN_BILLING"
+        )
         await message.answer(text, reply_markup=ik_cart_actions(order["id"], enable_plan=enable_plan))
 
 
