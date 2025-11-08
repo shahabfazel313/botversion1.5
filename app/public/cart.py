@@ -23,6 +23,7 @@ from ..db import (
     user_has_delivered_order,
 )
 from ..keyboards import (
+    ik_cart_actions,
     ik_card_receipt_prompt,
     ik_discount_controls,
     ik_discount_prompt,
@@ -120,6 +121,76 @@ async def _start_card_payment(callback: CallbackQuery, state: FSMContext, order_
     await callback.message.answer(f"🧾 رسید کارت سفارش #{order_id} را ارسال کنید.")
     await state.set_state(CheckoutStates.wait_card_receipt)
     await callback.answer()
+    return True
+
+
+async def _start_wallet_payment(callback: CallbackQuery, state: FSMContext, order: dict[str, Any]) -> bool:
+    order_id = int(order["id"])
+    amount = int(order.get("amount_total") or 0)
+    user = get_user(callback.from_user.id)
+    if int(user["wallet_balance"]) < amount:
+        await callback.answer("موجودی کیف پول کافی نیست.", show_alert=True)
+        return False
+    await state.update_data(
+        wallet_for=order_id,
+        wallet_amount=amount,
+        wallet_comment="",
+    )
+    await state.set_state(CheckoutStates.wait_wallet_comment)
+    await callback.message.answer(
+        f"👛 پرداخت با کیف پول برای سفارش #{order_id}\n"
+        "اگر توضیحاتی برای سفارش خود دارید بنویسید. پس از پایان روی «تایید پرداخت» بزنید.",
+        reply_markup=ik_wallet_confirm(order_id),
+    )
+    await callback.answer()
+    return True
+
+
+async def _start_mixed_payment(callback: CallbackQuery, state: FSMContext, order: dict[str, Any]) -> bool:
+    order_id = int(order["id"])
+    await state.update_data(mixed_for=order_id)
+    await state.set_state(CheckoutStates.wait_mixed_amount)
+    user = get_user(callback.from_user.id)
+    balance = int(user.get("wallet_balance") or 0)
+    await callback.message.answer(
+        f"👛 موجودی کیف پول شما: {balance} {CURRENCY}\nچه مقدار از کیف پول پرداخت شود؟ (فقط عدد به تومان)",
+    )
+    await callback.answer()
+    return True
+
+
+async def _continue_payment(callback: CallbackQuery, state: FSMContext, method: str, order_id: int) -> None:
+    order = get_order(order_id)
+    if not order or order.get("user_id") != callback.from_user.id:
+        await callback.answer("سفارش معتبر نیست یا یافت نشد.", show_alert=True)
+        return
+    if not _order_ready_for_payment(order):
+        await callback.answer("این سفارش در حال حاضر قابل پرداخت نیست.", show_alert=True)
+        return
+    started = False
+    if method == "card":
+        started = await _start_card_payment(callback, state, order)
+    elif method == "wallet":
+        started = await _start_wallet_payment(callback, state, order)
+    elif method == "mixed":
+        started = await _start_mixed_payment(callback, state, order)
+    if not started:
+        summary = build_checkout_summary(order)
+        enable_plan = order.get("service_category") == "AI"
+        await callback.message.answer(summary, reply_markup=ik_cart_actions(order_id, enable_plan=enable_plan))
+
+@router.callback_query(F.data.startswith("cart:paycard:"))
+async def cb_cart_paycard(callback: CallbackQuery, state: FSMContext) -> None:
+    if not await _require_contact_verification(callback, state):
+        return
+    order_id = int(callback.data.split(":")[2])
+    order = get_order(order_id)
+    if not order or order["user_id"] != callback.from_user.id or not _order_ready_for_payment(order):
+        await callback.answer("سفارش نامعتبر یا منقضی است.", show_alert=True)
+        return
+    if await _prompt_discount_choice(callback, state, order, "card"):
+        return
+    await _start_card_payment(callback, state, order)
 
 
 async def _start_wallet_payment(callback: CallbackQuery, state: FSMContext, order_id: int) -> None:
@@ -380,7 +451,7 @@ async def cb_wallet_confirm(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer("پرداخت کیف پول برای این سفارش فعال نیست.", show_alert=True)
         return
     order = get_order(order_id)
-    if not order or order["user_id"] != callback.from_user.id or order["status"] != "AWAITING_PAYMENT":
+    if not order or order["user_id"] != callback.from_user.id or not _order_ready_for_payment(order):
         await callback.answer("سفارش قابل پرداخت نیست.", show_alert=True)
         await state.clear()
         return
@@ -729,7 +800,7 @@ async def on_mixed_amount(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     order_id = int(data.get("mixed_for"))
     order = get_order(order_id)
-    if not order or order["user_id"] != message.from_user.id or order["status"] != "AWAITING_PAYMENT":
+    if not order or order["user_id"] != message.from_user.id or not _order_ready_for_payment(order):
         await message.answer("سفارش نامعتبر یا منقضی است.", reply_markup=reply_main())
         await state.clear()
         return

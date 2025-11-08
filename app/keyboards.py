@@ -195,6 +195,24 @@ def ik_cart_actions(order_id: int, *, enable_plan: bool = False) -> InlineKeyboa
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def ik_discount_question(order_id: int) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text="✅ دارم", callback_data=f"cart:discount:yes:{order_id}"),
+            InlineKeyboardButton(text="❌ ندارم", callback_data=f"cart:discount:no:{order_id}"),
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def ik_discount_code_controls(order_id: int) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text="✅ اعمال", callback_data=f"cart:discount:apply:{order_id}")],
+        [InlineKeyboardButton(text="↩️ بازگشت", callback_data=f"cart:discount:cancel:{order_id}")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def ik_card_receipt_prompt(order_id: int) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="❌ لغو", callback_data=f"cart:cancel:{order_id}")]]
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -301,6 +319,8 @@ __all__ = [
     "ik_build_actions",
     "ik_other_services_actions",
     "ik_cart_actions",
+    "ik_discount_question",
+    "ik_discount_code_controls",
     "ik_card_receipt_prompt",
     "ik_receipt_review",
     "ik_wallet_confirm",

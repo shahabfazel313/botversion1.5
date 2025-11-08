@@ -175,6 +175,14 @@ def init_db():
             ("orders", "manager_note", "TEXT"),
             ("orders", "internal_cost", "INTEGER DEFAULT 0"),
             ("orders", "net_revenue", "INTEGER DEFAULT 0"),
+            ("orders", "product_code", "TEXT"),
+            ("orders", "amount_original", "INTEGER DEFAULT 0"),
+            ("orders", "discount_id", "INTEGER"),
+            ("orders", "discount_code", "TEXT"),
+            ("orders", "discount_title", "TEXT"),
+            ("orders", "discount_amount", "INTEGER DEFAULT 0"),
+            ("orders", "discount_applied_at", "TEXT"),
+            ("orders", "discount_locked", "INTEGER DEFAULT 0"),
             ("users", "contact_phone", "TEXT"),
             ("users", "contact_verified", "INTEGER DEFAULT 0"),
             ("users", "contact_shared_at", "TEXT"),
@@ -390,11 +398,15 @@ def create_order(
     customer_email: str | None = None,
     notes: str | None = None,
     customer_secret: str | None = None,
+    *,
+    product_code: str | None = None,
+    amount_original: int | None = None,
 ) -> int | None:
     if amount_total <= 0:
         return None
     now = datetime.now()
     ensure_order_id_floor()
+    original_value = amount_total if amount_original is None else int(amount_original)
     oid = db_execute("""
         INSERT INTO orders(
             user_id, username, first_name,
@@ -402,15 +414,15 @@ def create_order(
             status, created_at, updated_at,
             amount_total, currency, service_category, service_code,
             account_mode, customer_email, notes,
-            customer_secret_encrypted
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            customer_secret_encrypted, product_code, amount_original
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         user["user_id"], user["username"], user["first_name"] or "",
         None, title, str(amount_total),
         "AWAITING_PAYMENT", now.isoformat(timespec="seconds"), now.isoformat(timespec="seconds"),
         amount_total, currency, service_category, service_code,
         account_mode or "", customer_email or "", notes or "",
-        customer_secret or ""
+        customer_secret or "", product_code, original_value
     ), return_lastrowid=True)
     # تنظیم ددلاین ۱۵ دقیقه
     await_deadline = (now + timedelta(minutes=PAYMENT_TIMEOUT_MIN)).isoformat(timespec="seconds")

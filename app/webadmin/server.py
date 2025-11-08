@@ -54,6 +54,7 @@ from ..db import (
     add_user_manager_message,
     create_discount_code,
     create_coupon,
+    create_discount_code,
     get_coupon,
     get_discount_code,
     list_coupons,
@@ -66,6 +67,7 @@ from ..db import (
     list_user_manager_messages,
     update_discount_code,
     set_order_financials,
+    update_discount_code,
 )
 from ..keyboards import ik_cart_actions
 
