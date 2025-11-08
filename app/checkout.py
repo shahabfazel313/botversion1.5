@@ -1,4 +1,7 @@
+from typing import Any
+
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+
 from .db import get_order
 from .config import CURRENCY
 
@@ -44,20 +47,37 @@ def _kb_checkout(oid: int, *, enable_plan: bool = False) -> InlineKeyboardMarkup
     rows.append([InlineKeyboardButton(text="❌ لغو سفارش", callback_data=f"cart:cancel:{oid}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+def build_checkout_summary(order: dict[str, Any], *, include_footer: bool = True) -> str:
+    title = _order_title(order.get("service_category", ""), order.get("service_code", ""))
+    amount_total = int(order.get("amount_total") or 0)
+    amount_original = int(order.get("amount_original") or 0)
+    discount_amount = int(order.get("discount_amount") or 0)
+    status = _status_fa(order.get("status") or "")
+    lines = [
+        f"📦 <b>{title}</b>",
+        f"شماره سفارش: <code>#{order['id']}</code>",
+    ]
+    if discount_amount > 0:
+        original_display = amount_original if amount_original else amount_total + discount_amount
+        lines.append(f"مبلغ اولیه: <b>{original_display} {CURRENCY}</b>")
+        lines.append(f"تخفیف: <b>-{discount_amount} {CURRENCY}</b>")
+        lines.append(f"مبلغ قابل پرداخت: <b>{amount_total} {CURRENCY}</b>")
+        code_value = (order.get("discount_code") or "").strip()
+        if code_value:
+            lines.append(f"کد تخفیف: <code>{code_value}</code>")
+    else:
+        lines.append(f"مبلغ: <b>{amount_total} {CURRENCY}</b>")
+    lines.append(f"وضعیت: <b>{status}</b>")
+    if include_footer:
+        lines.append("\nبرای ادامه، روش پرداخت را انتخاب کنید:")
+    return "\n".join(lines)
+
+
 async def send_checkout_prompt(msg: Message, order_id: int):
     o = get_order(order_id)
     if not o:
         await msg.answer("سفارش پیدا نشد.")
         return
-    title = _order_title(o.get("service_category",""), o.get("service_code",""))
-    amount = int(o.get("amount_total") or 0)
-    status = _status_fa(o.get("status") or "")
-    text = (
-        f"📦 <b>{title}</b>\n"
-        f"شماره سفارش: <code>#{o['id']}</code>\n"
-        f"مبلغ: <b>{amount} {CURRENCY}</b>\n"
-        f"وضعیت: <b>{status}</b>\n\n"
-        f"برای ادامه، روش پرداخت را انتخاب کنید:"
-    )
+    text = build_checkout_summary(o)
     enable_plan = o.get("service_category") == "AI"
     await msg.answer(text, reply_markup=_kb_checkout(o["id"], enable_plan=enable_plan))

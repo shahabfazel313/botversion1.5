@@ -20,6 +20,8 @@ class ShopStates(StatesGroup):
     other_wait_attachment = State()
 
 class CheckoutStates(StatesGroup):
+    wait_discount_choice = State()
+    wait_discount_code = State()
     wait_card_receipt = State()
     wait_mixed_amount = State()
     wait_card_comment = State()

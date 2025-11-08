@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>کدهای تخفیف</h1>
+
+{% if products %}
+<section class="panel">
+    <header>
+        <h2>ایجاد کد تخفیف برای محصولات</h2>
+    </header>
+    <p class="hint">برای هر محصول می‌توانید کد تخفیف با مبلغ، تاریخ انقضا و تعداد قابل استفاده مشخص بسازید. در صورت خالی گذاشتن فیلد کد، مقدار تصادفی تولید می‌شود.</p>
+    <div class="discount-list">
+        {% for item in products %}
+        {% set variant = item.variant %}
+        <div class="discount-row">
+            <div class="discount-header">
+                <div class="discount-header-info">
+                    <div class="discount-name">{{ item.group_title }}</div>
+                    <div class="discount-subtitle">{{ variant.display_name }}</div>
+                </div>
+                {% set current = discount_map.get(variant.code) %}
+                {% if current %}
+                <div class="discount-tags">
+                    {% for existing in current %}
+                    <span class="badge">{{ existing.code }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            <form method="post" action="{{ url_for('discount_create') }}">
+                <input type="hidden" name="product_code" value="{{ variant.code }}">
+                <div class="form-grid compact">
+                    <label>نام نمایشی
+                        <input type="text" name="title" placeholder="مثال: تخفیف ویژه">
+                    </label>
+                    <label>کد (اختیاری)
+                        <input type="text" name="code" placeholder="مثال: SAVE20">
+                    </label>
+                    <label>مبلغ تخفیف ({{ currency }})
+                        <input type="number" name="amount" min="1" required>
+                    </label>
+                    <label>تعداد قابل استفاده
+                        <input type="number" name="usage_limit" min="1" required>
+                    </label>
+                    <label>تاریخ انقضا
+                        <input type="date" name="expires_on">
+                    </label>
+                </div>
+                <footer class="discount-actions">
+                    <button type="submit" class="btn-secondary">ایجاد کد برای این محصول</button>
+                </footer>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    <p class="hint">هر کاربر تنها یک‌بار می‌تواند از هر کد تخفیف استفاده کند. پس از تایید پرداخت یا ورود سفارش به مرحله انتظار تایید، کد برای آن کاربر قفل می‌شود.</p>
+</section>
+{% endif %}
+
+<section class="panel">
+    <header><h2>تاریخچه و مدیریت کدهای تخفیف</h2></header>
+    <table>
+        <thead>
+            <tr>
+                <th>محصول</th>
+                <th>کد</th>
+                <th>عنوان</th>
+                <th>مبلغ</th>
+                <th>استفاده / مجاز</th>
+                <th>کاربران استفاده‌کننده</th>
+                <th>انقضا</th>
+                <th>وضعیت</th>
+                <th>تغییر وضعیت</th>
+                <th>ویرایش</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set has_items = namespace(value=false) %}
+            {% for product_code, items in discount_map.items() %}
+                {% for discount in items %}
+                {% set has_items.value = true %}
+                <tr>
+                    <td>{{ product_labels.get(product_code, product_code) }}</td>
+                    <td><strong>{{ discount.code }}</strong></td>
+                    <td>{{ discount.title or '—' }}</td>
+                    <td>{{ format_amount(discount.amount) }} {{ currency }}</td>
+                    <td>
+                        {{ discount.used_count }} / {{ discount.usage_limit }}
+                        {% if discount.pending_count %}
+                            <div class="muted">(+{{ discount.pending_count }} در انتظار)</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if discount.locked_users %}
+                        <div class="tag-row">
+                            {% for uid in discount.locked_users %}
+                                <span class="badge">#{{ uid }}</span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if discount.expires_at %}
+                            {{ format_datetime(discount.expires_at) }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not discount.is_active %}
+                            <span class="badge muted">غیرفعال</span>
+                        {% elif discount.is_expired %}
+                            <span class="badge expired">منقضی</span>
+                        {% elif discount.usage_limit and discount.used_count >= discount.usage_limit %}
+                            <span class="badge warning">اتمام ظرفیت</span>
+                        {% else %}
+                            <span class="badge approved">فعال</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="{{ url_for('discount_toggle', discount_id=discount.id) }}">
+                            {% if discount.is_active %}
+                                <button type="submit" class="btn-ghost danger">غیرفعال کردن</button>
+                            {% else %}
+                                <button type="submit" class="btn-ghost">فعال کردن</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                    <td>
+                        <form method="post" action="{{ url_for('discount_update', discount_id=discount.id) }}" class="form-inline">
+                            <select name="product_code">
+                                {% for item in products %}
+                                {% set variant = item.variant %}
+                                <option value="{{ variant.code }}" {% if variant.code == discount.product_code %}selected{% endif %}>
+                                    {{ product_labels.get(variant.code, variant.code) }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" name="code" value="{{ discount.code }}" required>
+                            <input type="text" name="title" value="{{ discount.title|default('', true) }}" placeholder="عنوان">
+                            <input type="number" name="amount" min="1" value="{{ discount.amount }}" required>
+                            <input type="number" name="usage_limit" min="{{ discount.used_count if discount.used_count else 1 }}" value="{{ discount.usage_limit }}" required>
+                            <input type="date" name="expires_on" value="{{ discount.expires_value }}">
+                            <button type="submit" class="btn-secondary">ذخیره</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% endfor %}
+            {% if not has_items.value %}
+            <tr>
+                <td colspan="10" class="empty">تا کنون کد تخفیفی ثبت نشده است.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}
