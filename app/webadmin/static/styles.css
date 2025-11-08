@@ -405,6 +405,11 @@ table td a.link {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.form-grid.compact {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
 .form-grid textarea, .form-grid input, .form-grid select {
     width: 100%;
     padding: 0.6rem;
@@ -426,6 +431,15 @@ table td a.link {
     border: 1px solid #d1d5db;
     min-width: 110px;
     font-family: inherit;
+}
+
+.form-inline select {
+    padding: 0.5rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    min-width: 160px;
+    font-family: inherit;
+    background: var(--surface);
 }
 
 .stats {
@@ -452,6 +466,11 @@ table td a.link {
 }
 
 .hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.muted {
     color: var(--muted);
     font-size: 0.85rem;
 }
@@ -494,4 +513,60 @@ table td a.link {
     align-items: center;
     gap: 0.5rem;
     font-weight: 500;
+}
+
+.discount-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.discount-row {
+    background: var(--surface-alt);
+    border-radius: 16px;
+    padding: 1.2rem;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    display: grid;
+    gap: 1rem;
+}
+
+.discount-row form {
+    margin: 0;
+}
+
+.discount-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.discount-header-info {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.discount-name {
+    font-weight: 700;
+}
+
+.discount-subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.discount-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.discount-tags .badge {
+    background: var(--surface);
+}
+
+.discount-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
 }

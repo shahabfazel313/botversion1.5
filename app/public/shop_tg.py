@@ -123,6 +123,7 @@ async def on_tg_premium_id(message: Message, state: FSMContext) -> None:
         account_mode="",
         customer_email=None,
         notes=f"desired_id={user_id_text}",
+        product_code=variant["code"],
     )
     await message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
@@ -216,6 +217,7 @@ async def cb_tg_ready_pre_buy(callback: CallbackQuery, state: FSMContext) -> Non
         account_mode="PREBUILT",
         customer_email=None,
         notes="",
+        product_code=variant["code"],
     )
     await callback.message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"

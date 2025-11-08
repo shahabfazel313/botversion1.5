@@ -210,6 +210,7 @@ async def on_ai_team_email(message: Message, state: FSMContext) -> None:
         account_mode="MY_ACCOUNT",
         customer_email=email,
         notes="",
+        product_code=variant["code"],
     )
     await message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
@@ -274,6 +275,7 @@ async def cb_ai_team_mode_pre_buy(callback: CallbackQuery, state: FSMContext) ->
         account_mode="PREBUILT",
         customer_email=None,
         notes="",
+        product_code=variant["code"],
     )
     await callback.message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
@@ -344,6 +346,7 @@ async def on_ai_plus_password(message: Message, state: FSMContext) -> None:
         customer_email=data.get("customer_email"),
         notes="(پسورد به‌صورت امن در مراحل بعد ذخیره/مدیریت می‌شود)",
         customer_secret=password,
+        product_code=variant["code"],
     )
     await message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
@@ -408,6 +411,7 @@ async def cb_ai_plus_mode_pre_buy(callback: CallbackQuery, state: FSMContext) ->
         account_mode="PREBUILT",
         customer_email=None,
         notes="",
+        product_code=variant["code"],
     )
     await callback.message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
@@ -456,6 +460,7 @@ async def cb_ai_google_mode_pre_buy(callback: CallbackQuery, state: FSMContext) 
         account_mode="PREBUILT",
         customer_email=None,
         notes="",
+        product_code=variant["code"],
     )
     await callback.message.answer(
         f"✅ سفارش #{order_id} ایجاد شد و به «🧺 سبد خرید» اضافه شد.\n"
