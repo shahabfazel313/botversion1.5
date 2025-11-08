@@ -1,6 +1,8 @@
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from .db import get_order
+from aiogram.types import Message
+
 from .config import CURRENCY
+from .db import get_order
+from .keyboards import ik_cart_actions
 
 def _status_fa(code: str) -> str:
     return {
@@ -30,34 +32,43 @@ def _order_title(service_category: str, code: str) -> str:
         if code == "ready_country": return "اکانت تلگرام آماده (کشور دلخواه)"
     return "سفارش"
 
-def _kb_checkout(oid: int, *, enable_plan: bool = False) -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(text="💳 پرداخت کارت", callback_data=f"cart:paycard:{oid}"),
-            InlineKeyboardButton(text="👛 کیف پول", callback_data=f"cart:paywallet:{oid}"),
-        ],
-    ]
-    mix_row = [InlineKeyboardButton(text="🔀 پرداخت ترکیبی", callback_data=f"cart:paymix:{oid}")]
-    if enable_plan:
-        mix_row.append(InlineKeyboardButton(text="✨ طرح خرید اول", callback_data=f"cart:payplan:{oid}"))
-    rows.append(mix_row)
-    rows.append([InlineKeyboardButton(text="❌ لغو سفارش", callback_data=f"cart:cancel:{oid}")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
 async def send_checkout_prompt(msg: Message, order_id: int):
     o = get_order(order_id)
     if not o:
         await msg.answer("سفارش پیدا نشد.")
         return
     title = _order_title(o.get("service_category",""), o.get("service_code",""))
-    amount = int(o.get("amount_total") or 0)
+    try:
+        total = int(o.get("amount_total") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    try:
+        subtotal = int(o.get("amount_subtotal") or total)
+    except (TypeError, ValueError):
+        subtotal = total
+    try:
+        discount_amount = int(o.get("discount_amount") or 0)
+    except (TypeError, ValueError):
+        discount_amount = 0
     status = _status_fa(o.get("status") or "")
-    text = (
-        f"📦 <b>{title}</b>\n"
-        f"شماره سفارش: <code>#{o['id']}</code>\n"
-        f"مبلغ: <b>{amount} {CURRENCY}</b>\n"
-        f"وضعیت: <b>{status}</b>\n\n"
-        f"برای ادامه، روش پرداخت را انتخاب کنید:"
+    lines = [
+        f"📦 <b>{title}</b>",
+        f"شماره سفارش: <code>#{o['id']}</code>",
+    ]
+    if discount_amount > 0:
+        lines.append(f"قیمت اصلی: <b>{subtotal} {CURRENCY}</b>")
+        lines.append(f"تخفیف: <b>{discount_amount} {CURRENCY}</b>")
+        lines.append(f"مبلغ قابل پرداخت: <b>{total} {CURRENCY}</b>")
+        discount_code = str(o.get("discount_code") or "").strip()
+        if discount_code:
+            lines.append(f"کد تخفیف: <code>{discount_code}</code>")
+    else:
+        lines.append(f"مبلغ: <b>{total} {CURRENCY}</b>")
+    lines.append(f"وضعیت: <b>{status}</b>")
+    lines.append("")
+    lines.append("برای ادامه، روش پرداخت را انتخاب کنید:")
+    enable_plan = (
+        o.get("service_category") == "AI"
+        and (o.get("payment_type") or "") != "FIRST_PLAN_BILLING"
     )
-    enable_plan = o.get("service_category") == "AI"
-    await msg.answer(text, reply_markup=_kb_checkout(o["id"], enable_plan=enable_plan))
+    await msg.answer("\n".join(lines), reply_markup=ik_cart_actions(o["id"], enable_plan=enable_plan))

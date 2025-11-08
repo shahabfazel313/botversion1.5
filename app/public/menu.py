@@ -61,17 +61,38 @@ async def on_reply_cart(message: Message, state: FSMContext) -> None:
             order.get("service_code", ""),
             order.get("notes"),
         )
-        amount = int(order.get("amount_total") or 0)
+        try:
+            amount = int(order.get("amount_total") or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        try:
+            subtotal = int(order.get("amount_subtotal") or amount)
+        except (TypeError, ValueError):
+            subtotal = amount
+        try:
+            discount_amount = int(order.get("discount_amount") or 0)
+        except (TypeError, ValueError):
+            discount_amount = 0
         reserved = int(order.get("wallet_reserved_amount") or 0)
         remaining = max(amount - reserved, 0)
-        text = (
-            f"🧺 سفارش #{order['id']} — <b>{title}</b>\n"
-            f"مبلغ کل: <b>{amount} {CURRENCY}</b>\n"
-            f"از کیف پول رزرو شده: <b>{reserved} {CURRENCY}</b>\n"
-            f"باقیمانده برای پرداخت کارت: <b>{remaining} {CURRENCY}</b>\n"
-            f"وضعیت: <b>{_status_fa(order['status'])}</b>{ttl}"
+        text_lines = [f"🧺 سفارش #{order['id']} — <b>{title}</b>"]
+        if discount_amount > 0:
+            text_lines.append(f"قیمت اصلی: <b>{subtotal} {CURRENCY}</b>")
+            text_lines.append(f"تخفیف: <b>{discount_amount} {CURRENCY}</b>")
+            text_lines.append(f"مبلغ قابل پرداخت: <b>{amount} {CURRENCY}</b>")
+            discount_code = str(order.get("discount_code") or "").strip()
+            if discount_code:
+                text_lines.append(f"کد تخفیف: <code>{discount_code}</code>")
+        else:
+            text_lines.append(f"مبلغ کل: <b>{amount} {CURRENCY}</b>")
+        text_lines.append(f"از کیف پول رزرو شده: <b>{reserved} {CURRENCY}</b>")
+        text_lines.append(f"باقیمانده برای پرداخت کارت: <b>{remaining} {CURRENCY}</b>")
+        text_lines.append(f"وضعیت: <b>{_status_fa(order['status'])}</b>{ttl}")
+        text = "\n".join(text_lines)
+        enable_plan = (
+            order.get("service_category") == "AI"
+            and (order.get("payment_type") or "") != "FIRST_PLAN_BILLING"
         )
-        enable_plan = order.get("service_category") == "AI"
         await message.answer(text, reply_markup=ik_cart_actions(order["id"], enable_plan=enable_plan))
 
 

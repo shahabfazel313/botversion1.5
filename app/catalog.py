@@ -7,6 +7,8 @@ from typing import Sequence
 
 from dotenv import load_dotenv, set_key
 
+from .db import normalize_product_key
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 ENV_FILE = ROOT_DIR / ".env"
 _ENV_FILE_MTIME: float | None = None
@@ -248,6 +250,48 @@ def list_admin_rows() -> list[dict[str, object]]:
     return rows
 
 
+_VARIANT_SERVICE_MAP: dict[str, tuple[str, str, str]] = {
+    "tg_premium_3m": ("TG", "premium_3m", ""),
+    "tg_premium_6m": ("TG", "premium_6m", ""),
+    "tg_premium_12m": ("TG", "premium_12m", ""),
+    "tg_ready_pre": ("TG", "ready_pre", "PREBUILT"),
+    "gpt_team_my": ("AI", "team", "MY_ACCOUNT"),
+    "gpt_team_pre": ("AI", "team", "PREBUILT"),
+    "gpt_plus_my": ("AI", "plus", "MY_ACCOUNT"),
+    "gpt_plus_pre": ("AI", "plus", "PREBUILT"),
+    "google_pro_my": ("AI", "google", "MY_ACCOUNT"),
+    "google_pro_pre": ("AI", "google", "PREBUILT"),
+}
+
+
+def list_discount_products() -> list[dict[str, object]]:
+    items: list[dict[str, object]] = []
+    for group_code, variant_codes in _ADMIN_ROWS:
+        group_title = _ADMIN_TITLES.get(group_code, group_code)
+        for variant_code in variant_codes:
+            mapping = _VARIANT_SERVICE_MAP.get(variant_code)
+            if not mapping:
+                continue
+            variant = get_variant(variant_code)
+            service_category, service_code, account_mode = mapping
+            product_key = normalize_product_key(service_category, service_code, account_mode)
+            items.append(
+                {
+                    "group_code": group_code,
+                    "group_title": group_title,
+                    "variant_code": variant_code,
+                    "display_name": variant["display_name"],
+                    "product_key": product_key,
+                    "service_category": service_category,
+                    "service_code": service_code,
+                    "account_mode": account_mode,
+                    "amount": variant["amount"],
+                    "available": variant["available"],
+                }
+            )
+    return items
+
+
 AI_VARIANT_MAP: dict[str, dict[str, str]] = {
     "team": {"my": "gpt_team_my", "pre": "gpt_team_pre"},
     "plus": {"my": "gpt_plus_my", "pre": "gpt_plus_pre"},
@@ -270,5 +314,6 @@ __all__ = [
     "get_variant_price_text",
     "is_variant_available",
     "list_admin_rows",
+    "list_discount_products",
     "set_variant_settings",
 ]

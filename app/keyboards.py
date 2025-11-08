@@ -226,6 +226,22 @@ def ik_plan_review(order_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def ik_discount_prompt(order_id: int, method: str) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text="✅ دارم", callback_data=f"cart:discount:yes:{method}:{order_id}")],
+        [InlineKeyboardButton(text="❌ ندارم", callback_data=f"cart:discount:no:{method}:{order_id}")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def ik_discount_controls(order_id: int, method: str) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text="🎟️ اعمال", callback_data=f"cart:discount:apply:{method}:{order_id}")],
+        [InlineKeyboardButton(text="↩️ بازگشت", callback_data=f"cart:discount:cancel:{method}:{order_id}")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 # ====== Profile / History ======
 
 def ik_profile_actions() -> InlineKeyboardMarkup:
@@ -289,6 +305,8 @@ __all__ = [
     "ik_receipt_review",
     "ik_wallet_confirm",
     "ik_plan_review",
+    "ik_discount_prompt",
+    "ik_discount_controls",
     "ik_profile_actions",
     "ik_coupon_controls",
     "ik_history_menu",
